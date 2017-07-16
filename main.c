@@ -51,26 +51,26 @@ struct {
 	{NULL,  { 0,  0,  0}}
 };
 
-int token_cmp(context *ctx, const char *s) {
+int cmp(context *ctx, const char *s) {
 	return ctx->token->type != T_NULL && strcmp(ctx->token->text, s) == 0;
 }
 
-int token_cmp_skip(context *ctx, const char *s) {
-	int ret = token_cmp(ctx, s);
+int cmp_skip(context *ctx, const char *s) {
+	int ret = cmp(ctx, s);
 	if (ret) ctx->token++;
 	return ret;
 }
 
-void token_cmp_err(context *ctx, const char *s) {
-	int ret = token_cmp_skip(ctx, s);
+void cmp_err(context *ctx, const char *s) {
+	int ret = cmp_skip(ctx, s);
 	if (!ret) {
 		fprintf(stderr, "require %s\n", s);
 		exit(1);
 	}
 }
 
-void token_cmp_err_skip(context *ctx, const char *s) {
-	int ret = token_cmp_skip(ctx, s);
+void cmp_err_skip(context *ctx, const char *s) {
+	int ret = cmp_skip(ctx, s);
 	if (!ret) {
 		fprintf(stderr, "require %s\n", s);
 		exit(1);
@@ -162,9 +162,9 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 		if (ctx->token->type == T_INTVAL) {
 			if (ef) ret = ctx->token->intval;
 			ctx->token++;
-		} else if (token_cmp_skip(ctx, "(")) {
+		} else if (cmp_skip(ctx, "(")) {
 			ret = proceed_expression(ctx, blk, 0, ef);
-			token_cmp_err_skip(ctx, ")");
+			cmp_err_skip(ctx, ")");
 		} else {
 			if (ef) {
 				variable *var = search(blk, ctx->token->text);
@@ -179,19 +179,19 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 		}
 	} else if (symbols[ctx->token->symbol].priority[0] == priority) {
 		ret = proceed_expression_internal(ctx, blk, isVector, priority, ef);
-		if      (token_cmp_skip(ctx, "+")) ret = +ret;
-		else if (token_cmp_skip(ctx, "-")) ret = -ret;
-		else if (token_cmp_skip(ctx, "~")) ret = ~ret;
-		else if (token_cmp_skip(ctx, "!")) ret = !ret;
+		if      (cmp_skip(ctx, "+")) ret = +ret;
+		else if (cmp_skip(ctx, "-")) ret = -ret;
+		else if (cmp_skip(ctx, "~")) ret = ~ret;
+		else if (cmp_skip(ctx, "!")) ret = !ret;
 		else {
-			fprintf(stderr, "Not implimented: %s\n", ctx->token->text);
+			fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
 			exit(1);
 		}
 	} else {
 		token *start = ctx->token, *op;
 		ret = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
 		if (symbols[ctx->token->symbol].priority[2] == priority
-				&& !(isVector && token_cmp(ctx, ","))) {
+				&& !(isVector && cmp(ctx, ","))) {
 			if (priority == 14 || priority == 15) {
 				op = ctx->token++;
 				int right = proceed_expression_internal(ctx, blk, isVector, priority, ef);
@@ -199,16 +199,16 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 			} else {
 				do {
 					int effective = 1;
-					if (token_cmp(ctx, "&&")) effective = ret;
-					else if (token_cmp(ctx, "||")) effective = !ret;
+					if (cmp(ctx, "&&")) effective = ret;
+					else if (cmp(ctx, "||")) effective = !ret;
 					op = ctx->token++;
 					int right = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef && effective);
 					if (ef) ret = proceed_binary_operator(op, ret, right);
 				} while (symbols[ctx->token->symbol].priority[2] == priority);
 			}
-		} else if (priority == 14 && token_cmp_skip(ctx, "?")) {
+		} else if (priority == 14 && cmp_skip(ctx, "?")) {
 			int a = proceed_expression_internal(ctx, blk, isVector, priority, ef);
-			token_cmp_err_skip(ctx, ":");
+			cmp_err_skip(ctx, ":");
 			int b = proceed_expression_internal(ctx, blk, isVector, priority, ef);
 			ret = ret ? a : b;
 		} else {
@@ -231,11 +231,11 @@ int proceed_block(context *ctx, block *parent) {
 	blk.parent = parent;
 	blk.table = NULL;
 	while (ctx->token->type != T_NULL) {
-		if (token_cmp_skip(ctx, "print")) {
+		if (cmp_skip(ctx, "print")) {
 			int ret = proceed_expression(ctx, &blk, 0, 1);
 			printf("%d\n", ret);
-			token_cmp_err_skip(ctx, ";");
-		} else if (token_cmp_skip(ctx, "int")) {
+			cmp_err_skip(ctx, ";");
+		} else if (cmp_skip(ctx, "int")) {
 			do {
 				if (ctx->token->type != T_IDENT ||
 					search(&blk, ctx->token->text) != NULL) {
@@ -246,18 +246,18 @@ int proceed_block(context *ctx, block *parent) {
 				variable *var = malloc(sizeof(variable));
 				var->type = VT_INT;
 				ctx->token++;
-				if (token_cmp_skip(ctx, "=")) {
+				if (cmp_skip(ctx, "=")) {
 					var->intval = proceed_expression(ctx, &blk, 1, 1);
 				}
 				blk.table = map_add(blk.table, name, var);
-			} while (token_cmp_skip(ctx, ","));
-			token_cmp_err_skip(ctx, ";");
-		} else if (token_cmp_skip(ctx, "{")) {
+			} while (cmp_skip(ctx, ","));
+			cmp_err_skip(ctx, ";");
+		} else if (cmp_skip(ctx, "{")) {
 			proceed_block(ctx, &blk);
-			token_cmp_err_skip(ctx, "}");
+			cmp_err_skip(ctx, "}");
 		} else {
 			proceed_expression(ctx, &blk, 0, 1);
-			token_cmp_err_skip(ctx, ";");
+			cmp_err_skip(ctx, ";");
 		}
 	}
 	map_free(blk.table);
