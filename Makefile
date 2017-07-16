@@ -1,6 +1,7 @@
 .PHONY: clean test
 cantang:	main.c
 	gcc $< -o $@ -g3 -Wall -Wextra
+	wc -l $<
 
 clean:
 	rm -rf cantang
