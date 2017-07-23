@@ -8,4 +8,5 @@ clean:
 
 test:	cantang
 	./$< tests/00_return.c
+	./$< tests/02_assign.c
 	@echo "test pass"
