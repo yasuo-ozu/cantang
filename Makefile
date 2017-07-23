@@ -9,4 +9,5 @@ clean:
 test:	cantang
 	./$< tests/00_return.c
 	./$< tests/02_assign.c
+	./$< tests/01_while.c
 	@echo "test pass"

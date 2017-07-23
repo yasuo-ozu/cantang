@@ -24,7 +24,7 @@ typedef struct {
 
 /* グローバル変数 */
 const char * const keywords[] = {
-	"int", "print", "return", "for", "while",
+	"int", "print", "return", "if", "break", "continue", "for", "while",
 	NULL
 };
 
@@ -248,7 +248,11 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		i = proceed_expression(ctx, parent, 0, ef);
 		if (ef) ctx->return_value = i;
 		cmp_err_skip(ctx, ";");
-		ret = ef ? RTYPE_RETURN : 0;
+		ret = RTYPE_RETURN;
+	} else if (cmp_skip(ctx, "break")) {
+		cmp_err_skip(ctx, ";"); ret = RTYPE_BREAK;
+	} else if (cmp_skip(ctx, "continue")) {
+		cmp_err_skip(ctx, ";"); ret = RTYPE_CONTINUE;
 	} else if (cmp_skip(ctx, "int")) {
 		do {
 			if (ef && (ctx->token->type != T_IDENT ||
@@ -267,6 +271,11 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			}
 		} while (cmp_skip(ctx, ","));
 		cmp_err_skip(ctx, ";");
+	} else if (cmp_skip(ctx, "if")) {
+		cmp_err_skip(ctx, "(");
+		ef = proceed_expression(ctx, parent, 0, ef) && ef;
+		cmp_err_skip(ctx, ")");
+		ret = proceed_statement(ctx, parent, ef);
 	} else if (cmp_skip(ctx, "while")) {
 		cmp_err_skip(ctx, "(");
 		token *start = ctx->token;
