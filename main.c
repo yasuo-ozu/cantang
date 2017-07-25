@@ -156,8 +156,9 @@ int proceed_binary_operator(token *op, int a, int b) {
 
 int proceed_expression(context *, block *, int, int);
 int proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
-	int ret = 0;
-	if (priority == 1) {
+	int ret = 0, i;
+	token *op;
+	if (priority == 0) {
 		if (ctx->token->type == T_INTVAL) {
 			if (ef) ret = ctx->token->intval;
 			ctx->token++;
@@ -177,17 +178,27 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 			ctx->token++;
 		}
 	} else if (symbols[ctx->token->symbol].priority[0] == priority) {
+		op = ctx->token++;
 		ret = proceed_expression_internal(ctx, blk, isVector, priority, ef);
-		if      (cmp_skip(ctx, "+")) ret = +ret;
-		else if (cmp_skip(ctx, "-")) ret = -ret;
-		else if (cmp_skip(ctx, "~")) ret = ~ret;
-		else if (cmp_skip(ctx, "!")) ret = !ret;
-		else {
+		if      (strcmp(op->text, "+") == 0) ret = +ret;
+		else if (strcmp(op->text, "-") == 0) ret = -ret;
+		else if (strcmp(op->text, "!") == 0) ret = !ret;
+		else if (strcmp(op->text, "~") == 0) ret = ~ret;
+		else if ((i = (strcmp(op->text, "++") == 0)) || strcmp(op->text, "--") == 0) {
+			variable *var = search(blk, (op + 1)->text);
+			if (var == NULL) {
+				fprintf(stderr, "Invalid variable %s\n", (op + 1)->text);
+				exit(1);
+			}
+			if (i) var->intval++;
+			else var->intval--;
+			ret = var->intval;
+		} else {
 			fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
 			exit(1);
 		}
 	} else {
-		token *op, *left = ctx->token;
+		token *left = ctx->token;
 		ret = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
 		if (symbols[ctx->token->symbol].priority[2] == priority
 				&& !(isVector && cmp(ctx, ","))) {
@@ -220,8 +231,19 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 			ret = ret ? a : b;
 		} else {
 			while (symbols[ctx->token->symbol].priority[1] == priority) {
-				fprintf(stderr, "Not implimented: %s\n", ctx->token->text);
-				exit(1);
+				if ((i = (cmp_skip(ctx, "++"))) || cmp_skip(ctx, "--")) {
+					variable *var = search(blk, (ctx->token - 2)->text);
+					if (var == NULL) {
+						fprintf(stderr, "Invalid variable %s\n", (ctx->token - 2)->text);
+						exit(1);
+					}
+					ret = var->intval;
+					if (i) var->intval++;
+					else var->intval--;
+				} else {
+					fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
+					exit(1);
+				}
 			}
 		}
 	}
