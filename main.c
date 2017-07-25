@@ -275,7 +275,8 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		cmp_err_skip(ctx, "(");
 		ef = proceed_expression(ctx, parent, 0, ef) && ef;
 		cmp_err_skip(ctx, ")");
-		ret = proceed_statement(ctx, parent, ef);
+		i = proceed_statement(ctx, parent, ef);
+		if (ef) ret = i;
 	} else if (cmp_skip(ctx, "while")) {
 		cmp_err_skip(ctx, "(");
 		token *start = ctx->token;
