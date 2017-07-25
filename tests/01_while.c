@@ -5,4 +5,4 @@ while (i) {
 	if (i == 2) 
 		break;
 }
-return j == 3;
+return j - 3;
