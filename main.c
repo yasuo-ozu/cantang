@@ -34,7 +34,7 @@ struct {
 } symbols[] = {
 	{NULL,  { 0,  0,  0}},
 	{"++",  { 2,  1,  0}}, {"--",  { 2,  1,  0}}, {"~",   { 2,  0,  0}}, {"!",   { 2,  0,  0}},
-	{"*",   { 0,  0,  4}}, {"/",   { 0,  0,  4}}, {"%",   { 0,  0,  4}},
+	{"*",   { 2,  0,  4}}, {"/",   { 0,  0,  4}}, {"%",   { 0,  0,  4}},
 	{"+",   { 2,  0,  5}}, {"-",   { 2,  0,  5}},
 	{"<<",  { 0,  0,  6}}, {">>",  { 0,  0,  6}},
 	{"<",   { 0,  0,  7}}, {"<=",  { 0,  0,  7}}, {">",   { 0,  0,  7}}, {">=",  { 0,  0,  7}},
@@ -45,7 +45,7 @@ struct {
 	{"/=",  { 0,  0, 15}}, {"%=",  { 0,  0, 15}}, {"<<=", { 0,  0, 15}}, {">>=", { 0,  0, 15}},
 	{"&=",  { 0,  0, 15}}, {"^=",  { 0,  0, 15}}, {"|=",  { 0,  0, 15}},
 	{",",   { 0,  0, 16}}, {"(",   { 0,  0,  0}}, {")",   { 0,  0,  0}}, {"{",   { 0,  0,  0}},
-	{"}",   { 0,  0,  0}}, {"[",   { 0,  0,  0}}, {"]",   { 0,  0,  0}}, {"?",   { 0,  0,  0}},
+	{"}",   { 0,  0,  0}}, {"[",   { 0,  1,  0}}, {"]",   { 0,  0,  0}}, {"?",   { 0,  0,  0}},
 	{":",   { 0,  0,  0}}, {";",   { 0,  0,  0}},
 	{NULL,  { 0,  0,  0}}
 };
@@ -109,9 +109,9 @@ void *map_search(map *m, const char *key) {
 
 typedef struct {
 	enum {
-		VT_INT, VT_FUNC
+		VT_NULL = 0, VT_INT, VT_FUNC, VT_ARRAY
 	} type;
-	int intval;
+	long long intval;
 } variable;
 
 typedef struct block {
@@ -154,23 +154,23 @@ int proceed_binary_operator(token *op, int a, int b) {
 	}
 }
 
-int proceed_expression(context *, block *, int, int);
-int proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
-	int ret = 0, i;
+variable *proceed_expression(context *, block *, int, int);
+variable *proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
+	variable *retvar = NULL;
+	long long ret = 0, i;
 	token *op;
 	if (priority == 0) {
 		if (ctx->token->type == T_INTVAL) {
 			if (ef) ret = ctx->token->intval;
 			ctx->token++;
+			retvar = NULL;
 		} else if (cmp_skip(ctx, "(")) {
-			ret = proceed_expression(ctx, blk, 0, ef);
+			retvar = proceed_expression(ctx, blk, 0, ef);
 			cmp_err_skip(ctx, ")");
 		} else {
 			if (ef) {
-				variable *var = search(blk, ctx->token->text);
-				if (var != NULL) {
-					ret = var->intval;
-				} else {
+				retvar = search(blk, ctx->token->text);
+				if (retvar == NULL) {
 					fprintf(stderr, "Invalid terminal term: %s\n", ctx->token->text);
 					exit(1);
 				}
@@ -179,40 +179,29 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 		}
 	} else if (symbols[ctx->token->symbol].priority[0] == priority) {
 		op = ctx->token++;
-		ret = proceed_expression_internal(ctx, blk, isVector, priority, ef);
+		retvar = proceed_expression_internal(ctx, blk, isVector, priority, ef);
+		ret = retvar->intval;
 		if      (strcmp(op->text, "+") == 0) ret = +ret;
 		else if (strcmp(op->text, "-") == 0) ret = -ret;
 		else if (strcmp(op->text, "!") == 0) ret = !ret;
 		else if (strcmp(op->text, "~") == 0) ret = ~ret;
 		else if ((i = (strcmp(op->text, "++") == 0)) || strcmp(op->text, "--") == 0) {
-			variable *var = search(blk, (op + 1)->text);
-			if (var == NULL) {
-				fprintf(stderr, "Invalid variable %s\n", (op + 1)->text);
-				exit(1);
-			}
-			if (i) var->intval++;
-			else var->intval--;
-			ret = var->intval;
+			if (ef) ret = i ? ++retvar->intval : --retvar->intval;
 		} else {
 			fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
 			exit(1);
 		}
+		retvar = NULL;	// You have to duplicate variable
 	} else {
-		token *left = ctx->token;
-		ret = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
-		if (symbols[ctx->token->symbol].priority[2] == priority
-				&& !(isVector && cmp(ctx, ","))) {
+		retvar = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
+		if (ef) ret = retvar->intval;
+		if (symbols[ctx->token->symbol].priority[2] == priority && !(isVector && cmp(ctx, ","))) {
 			if (priority == 14 || priority == 15) {
 				op = ctx->token++;
-				int right = proceed_expression_internal(ctx, blk, isVector, priority, ef);
+				variable *right = proceed_expression_internal(ctx, blk, isVector, priority, ef);
 				if (ef) {
-					if (strcmp(op->text, "=") == 0) {
-						variable *var = search(blk, left->text);
-						if (var == NULL) {
-							fprintf(stderr, "variable %s not found\n", left->text);
-							exit(1);
-						} else ret = var->intval = right;
-					} else ret = proceed_binary_operator(op, ret, right);
+					if (strcmp(op->text, "=") == 0) ret = retvar->intval = right->intval;
+					else ret = proceed_binary_operator(op, ret, right->intval);
 				}
 			} else {
 				do {
@@ -220,26 +209,26 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 					if (cmp(ctx, "&&")) effective = ret;
 					else if (cmp(ctx, "||")) effective = !ret;
 					op = ctx->token++;
-					int right = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef && effective);
-					if (ef) ret = proceed_binary_operator(op, ret, right);
+					variable *right = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef && effective);
+					if (ef) ret = proceed_binary_operator(op, ret, right->intval);
 				} while (symbols[ctx->token->symbol].priority[2] == priority);
 			}
+			retvar = NULL;
 		} else if (priority == 14 && cmp_skip(ctx, "?")) {
-			int a = proceed_expression_internal(ctx, blk, isVector, priority, ef);
+			variable *a = proceed_expression_internal(ctx, blk, isVector, priority, ef);
 			cmp_err_skip(ctx, ":");
-			int b = proceed_expression_internal(ctx, blk, isVector, priority, ef);
-			ret = ret ? a : b;
+			variable *b = proceed_expression_internal(ctx, blk, isVector, priority, ef);
+			if (ef) ret = ret ? a->intval : b->intval;
+			retvar = NULL;
 		} else {
 			while (symbols[ctx->token->symbol].priority[1] == priority) {
 				if ((i = (cmp_skip(ctx, "++"))) || cmp_skip(ctx, "--")) {
-					variable *var = search(blk, (ctx->token - 2)->text);
-					if (var == NULL) {
-						fprintf(stderr, "Invalid variable %s\n", (ctx->token - 2)->text);
-						exit(1);
-					}
-					ret = var->intval;
-					if (i) var->intval++;
-					else var->intval--;
+					if (ef) ret = i ? retvar->intval++ : retvar->intval--;
+					retvar = NULL;
+				} else if (cmp_skip(ctx, "[")) {
+					variable *var = proceed_expression(ctx, blk, 0, ef);
+					if (ef) retvar = (variable *)(ret + sizeof(variable) * var->intval);
+					cmp_err_skip(ctx, "]");
 				} else {
 					fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
 					exit(1);
@@ -247,11 +236,15 @@ int proceed_expression_internal(context *ctx, block *blk, int isVector, int prio
 			}
 		}
 	}
-	return ret;
-
+	if (ef && retvar == NULL) {
+		retvar = (variable *) calloc(1, sizeof(variable));
+		retvar->type = VT_INT;
+		retvar->intval = ret;
+	}
+	return retvar;
 }
 
-int proceed_expression(context *ctx, block *blk, int isVector, int ef) {
+variable *proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 	return proceed_expression_internal(ctx, blk, isVector, 16, ef);
 }
 
@@ -262,41 +255,54 @@ int proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 
 int proceed_statement(context *ctx, block *parent, int ef) {
 	int ret = RTYPE_NORMAL, i;
+	variable *var;
 	if (cmp_skip(ctx, "print")) {
-		i = proceed_expression(ctx, parent, 0, ef);
-		if (ef) printf("%d\n", i);
+		var = proceed_expression(ctx, parent, 0, ef);
+		if (ef) printf("%lld\n", var->intval);
 		cmp_err_skip(ctx, ";");
 	} else if (cmp_skip(ctx, "return")) {
-		i = proceed_expression(ctx, parent, 0, ef);
-		if (ef) ctx->return_value = i;
+		var = proceed_expression(ctx, parent, 0, ef);
+		if (ef) ctx->return_value = var->intval;
 		cmp_err_skip(ctx, ";");
 		ret = RTYPE_RETURN;
 	} else if (cmp_skip(ctx, "break")) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_BREAK;
 	} else if (cmp_skip(ctx, "continue")) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_CONTINUE;
-	} else if (cmp_skip(ctx, "int")) {
+	} else if (cmp_skip(ctx, "int") || cmp_skip(ctx, "long") || cmp_skip(ctx, "char")) {
 		do {
+			cmp_skip(ctx, "long"); cmp_skip(ctx, "*");
 			if (ef && (ctx->token->type != T_IDENT ||
 				search(parent, ctx->token->text) != NULL)) {
 				fprintf(stderr, "Bad variable name: %s\n", ctx->token->text);
 				exit(1);
 			}
 			char *name = ctx->token->text;
+			variable *arrlen = NULL, *var2 = NULL;
 			ctx->token++;
-			if (i = 0, cmp_skip(ctx, "=")) i = proceed_expression(ctx, parent, 1, ef);
+			if (cmp_skip(ctx, "[")) {
+				arrlen = proceed_expression(ctx, parent, 0, ef);
+				cmp_err_skip(ctx, "]");
+			}
+			if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
 			if (ef) {
-				variable *var = malloc(sizeof(variable));
-				var->intval = i;
-				var->type = VT_INT;
+				var = calloc(1, sizeof(variable));
+				if (arrlen != NULL) {
+					var->intval = (long long) calloc(arrlen->intval, sizeof(variable));
+					var->type = VT_ARRAY;
+				} else {
+					if (var2 != NULL) var->intval = var2->intval;
+					var->type = VT_INT;
+				}
 				parent->table = map_add(parent->table, name, var);
 			}
 		} while (cmp_skip(ctx, ","));
 		cmp_err_skip(ctx, ";");
 	} else if (cmp_skip(ctx, "if")) {
 		cmp_err_skip(ctx, "(");
-		ef = proceed_expression(ctx, parent, 0, ef) && ef;
+		var = proceed_expression(ctx, parent, 0, ef);
 		cmp_err_skip(ctx, ")");
+		if (ef) ef = var->intval;
 		i = proceed_statement(ctx, parent, ef);
 		if (ef) ret = i;
 	} else if (cmp_skip(ctx, "while")) {
@@ -304,9 +310,9 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		token *start = ctx->token;
 		do {
 			ctx->token = start;
-			ef = proceed_expression(ctx, parent, 0, ef) && ef;
+			var = proceed_expression(ctx, parent, 0, ef);
 			cmp_err_skip(ctx, ")");
-			ret = proceed_statement(ctx, parent, ef);
+			ret = proceed_statement(ctx, parent, ef = (ef && var->intval));
 		} while (ef && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
 		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
 	} else if (cmp_skip(ctx, "{")) {
