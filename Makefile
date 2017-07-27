@@ -11,4 +11,5 @@ test:	cantang
 	./$< tests/01_while.c
 	./$< tests/02_assign.c
 	./$< tests/03_op.c
+	./$< tests/04_array.c
 	@echo "test pass"
