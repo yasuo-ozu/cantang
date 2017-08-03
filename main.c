@@ -79,14 +79,6 @@ int cmp_skip(context *ctx, const char *s) {
 	return ret;
 }
 
-void cmp_err(context *ctx, const char *s) {
-	int ret = cmp_skip(ctx, s);
-	if (!ret) {
-		fprintf(stderr, "require %s\n", s);
-		exit(1);
-	}
-}
-
 void cmp_err_skip(context *ctx, const char *s) {
 	int ret = cmp_skip(ctx, s);
 	if (!ret) {
