@@ -17,11 +17,6 @@ typedef struct token {
 	int symbol;		// symbols[]内のインデックス。T_SYMBOLの時に使う
 } token;
 
-typedef struct {
-	token *token;
-	int return_value;
-} context;
-
 /* グローバル変数 */
 const char * const keywords[] = {
 	"int", "print", "return", "if", "break", "continue", "for", "while",
@@ -44,11 +39,35 @@ struct {
 	{"=",   { 0,  0, 15}}, {"+=",  { 0,  0, 15}}, {"-=",  { 0,  0, 15}}, {"*=",  { 0,  0, 15}},
 	{"/=",  { 0,  0, 15}}, {"%=",  { 0,  0, 15}}, {"<<=", { 0,  0, 15}}, {">>=", { 0,  0, 15}},
 	{"&=",  { 0,  0, 15}}, {"^=",  { 0,  0, 15}}, {"|=",  { 0,  0, 15}},
-	{",",   { 0,  0, 16}}, {"(",   { 0,  0,  0}}, {")",   { 0,  0,  0}}, {"{",   { 0,  0,  0}},
+	{",",   { 0,  0, 16}}, {"(",   { 0,  1,  0}}, {")",   { 0,  0,  0}}, {"{",   { 0,  0,  0}},
 	{"}",   { 0,  0,  0}}, {"[",   { 0,  1,  0}}, {"]",   { 0,  0,  0}}, {"?",   { 0,  0,  0}},
 	{":",   { 0,  0,  0}}, {";",   { 0,  0,  0}},
 	{NULL,  { 0,  0,  0}}
 };
+
+typedef struct map {
+	struct map *next;
+	char *key;
+	void *value;
+} map;
+
+typedef struct {
+	enum {
+		VT_NULL = 0, VT_INT, VT_FUNC, VT_ARRAY
+	} type;
+	long long intval;
+} variable;
+
+typedef struct block {
+	struct block *parent;
+	map *table;
+} block;
+
+typedef struct {
+	token *token;
+	long long return_value;
+	block *exp_parent;
+} context;
 
 int cmp(context *ctx, const char *s) {
 	return ctx->token->type != T_NULL && strcmp(ctx->token->text, s) == 0;
@@ -76,12 +95,6 @@ void cmp_err_skip(context *ctx, const char *s) {
 	}
 }
 
-typedef struct map {
-	struct map *next;
-	char *key;
-	void *value;
-} map;
-
 void map_free(map *m) {
 	while (m != NULL) {
 		map *n = m->next;
@@ -106,18 +119,6 @@ void *map_search(map *m, const char *key) {
 	}
 	return NULL;
 }
-
-typedef struct {
-	enum {
-		VT_NULL = 0, VT_INT, VT_FUNC, VT_ARRAY
-	} type;
-	long long intval;
-} variable;
-
-typedef struct block {
-	struct block *parent;
-	map *table;
-} block;
 
 variable *search(block *blk, const char *key) {
 	while (blk != NULL) {
@@ -154,6 +155,7 @@ int proceed_binary_operator(token *op, int a, int b) {
 	}
 }
 
+int proceed_statement(context *, block *, int);
 variable *proceed_expression(context *, block *, int, int);
 variable *proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
 	variable *retvar = NULL;
@@ -225,6 +227,15 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 				if ((i = (cmp_skip(ctx, "++"))) || cmp_skip(ctx, "--")) {
 					if (ef) ret = i ? retvar->intval++ : retvar->intval--;
 					retvar = NULL;
+				} else if (cmp_skip(ctx, "(")) {
+					cmp_err_skip(ctx, ")");
+					if (ef) {
+						token *tk = ctx->token;
+						ctx->token = (token *) ret;
+						proceed_statement(ctx, ctx->exp_parent, 1);	// ブロック内から呼ぶ場合parent->parent
+						ret = ctx->return_value;
+						ctx->token = tk;
+					}
 				} else if (cmp_skip(ctx, "[")) {
 					variable *var = proceed_expression(ctx, blk, 0, ef);
 					if (ef) retvar = (variable *)(ret + sizeof(variable) * var->intval);
@@ -256,6 +267,7 @@ variable *proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 int proceed_statement(context *ctx, block *parent, int ef) {
 	int ret = RTYPE_NORMAL, i;
 	variable *var = NULL;
+	ctx->exp_parent = parent;
 	if (cmp_skip(ctx, "print")) {
 		var = proceed_expression(ctx, parent, 0, ef);
 		if (ef) printf("%lld\n", var->intval);
@@ -274,27 +286,38 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			cmp_skip(ctx, "long"); cmp_skip(ctx, "*");
 			if (ef && (ctx->token->type != T_IDENT ||
 				search(parent, ctx->token->text) != NULL)) {
-				fprintf(stderr, "Bad variable name: %s\n", ctx->token->text);
+				fprintf(stderr, "Identifier already used: %s\n", ctx->token->text);
 				exit(1);
 			}
 			char *name = ctx->token->text;
 			variable *arrlen = NULL, *var2 = NULL;
 			ctx->token++;
-			if (cmp_skip(ctx, "[")) {
-				arrlen = proceed_expression(ctx, parent, 0, ef);
-				cmp_err_skip(ctx, "]");
-			}
-			if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
-			if (ef) {
+			if (cmp_skip(ctx, "(")) {
+				while (!cmp(ctx, ")") && ctx->token->type != T_NULL) ctx->token++;
+				cmp_err_skip(ctx, ")");
 				var = calloc(1, sizeof(variable));
-				if (arrlen != NULL) {
-					var->intval = (long long) calloc(arrlen->intval, sizeof(variable));
-					var->type = VT_ARRAY;
-				} else {
-					if (var2 != NULL) var->intval = var2->intval;
-					var->type = VT_INT;
-				}
+				var->type = VT_FUNC;
+				var->intval = (long long) ctx->token;
 				parent->table = map_add(parent->table, name, var);
+				proceed_statement(ctx, parent, 0);
+				return ret;
+			} else {
+				if (cmp_skip(ctx, "[")) {
+					arrlen = proceed_expression(ctx, parent, 0, ef);
+					cmp_err_skip(ctx, "]");
+				}
+				if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
+				if (ef) {
+					var = calloc(1, sizeof(variable));
+					if (arrlen != NULL) {
+						var->intval = (long long) calloc(arrlen->intval, sizeof(variable));
+						var->type = VT_ARRAY;
+					} else {
+						if (var2 != NULL) var->intval = var2->intval;
+						var->type = VT_INT;
+					}
+					parent->table = map_add(parent->table, name, var);
+				}
 			}
 		} while (cmp_skip(ctx, ","));
 		cmp_err_skip(ctx, ";");
