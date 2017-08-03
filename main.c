@@ -255,7 +255,7 @@ variable *proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 
 int proceed_statement(context *ctx, block *parent, int ef) {
 	int ret = RTYPE_NORMAL, i;
-	variable *var;
+	variable *var = NULL;
 	if (cmp_skip(ctx, "print")) {
 		var = proceed_expression(ctx, parent, 0, ef);
 		if (ef) printf("%lld\n", var->intval);
@@ -305,6 +305,25 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		if (ef) ef = var->intval;
 		i = proceed_statement(ctx, parent, ef);
 		if (ef) ret = i;
+	} else if (cmp_skip(ctx, "for")) {
+		cmp_err_skip(ctx, "(");
+		if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
+		cmp_err_skip(ctx, ";");
+		token *start = ctx->token, *iterate, *end;
+		do {
+			if (!cmp(ctx, ";")) var = proceed_expression(ctx, parent, 0, ef);
+			cmp_err_skip(ctx, ";");
+			iterate = ctx->token;
+			proceed_expression(ctx, parent, 0, 0);
+			cmp_err_skip(ctx, ")");
+			ret = proceed_statement(ctx, parent, ef = (ef && (var == NULL ||  var->intval)));
+			end = ctx->token;
+			ctx->token = iterate;
+			if (!cmp(ctx, ")")) proceed_expression(ctx, parent, 0, ef);
+			ctx->token = start;
+		} while (ef && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
+		ctx->token = end;
+		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
 	} else if (cmp_skip(ctx, "while")) {
 		cmp_err_skip(ctx, "(");
 		token *start = ctx->token;
