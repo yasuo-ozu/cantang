@@ -66,7 +66,7 @@ typedef struct block {
 typedef struct {
 	token *token;
 	long long return_value;
-	block *exp_parent;
+	block *global;
 } context;
 
 int cmp(context *ctx, const char *s) {
@@ -223,13 +223,13 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					long long args_val[16];
 					int args_count = 0;
 					do {
-						variable *var = proceed_expression(ctx, ctx->exp_parent, 1, ef);
+						variable *var = proceed_expression(ctx, blk, 1, ef);
 						if (ef) { args_val[args_count++] = var->intval; }
 					} while (cmp_skip(ctx, ","));
 					cmp_err_skip(ctx, ")");
 					if (ef) {
 						block *args = calloc(1, sizeof(block));
-						args->parent = ctx->exp_parent;
+						args->parent = ctx->global;
 						token *tk = ctx->token;
 						ctx->token = (token *) ret;
 						i = 0;
@@ -245,7 +245,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 							i++;
 						} while (cmp_skip(ctx, ","));
 						cmp_err_skip(ctx, ")");
-						proceed_statement(ctx, args, 1);	// ブロック内から呼ぶ場合parent->parent
+						proceed_statement(ctx, args, 1);
 						ret = ctx->return_value;
 						retvar = NULL;
 						ctx->token = tk;
@@ -281,7 +281,6 @@ variable *proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 int proceed_statement(context *ctx, block *parent, int ef) {
 	int ret = RTYPE_NORMAL, i;
 	variable *var = NULL;
-	ctx->exp_parent = parent;
 	if (cmp_skip(ctx, "print")) {
 		var = proceed_expression(ctx, parent, 0, ef);
 		if (ef) printf("%lld\n", var->intval);
@@ -404,6 +403,7 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 int proceed(context *ctx) {
 	int ef = 1, ret = RTYPE_NORMAL, i;
 	block blk = {NULL, NULL};
+	ctx->global = &blk;
 	while (ctx->token->type != T_NULL) {
 		i = proceed_statement(ctx, &blk, ef);
 		if (ef) {
