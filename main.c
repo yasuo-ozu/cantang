@@ -339,9 +339,14 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		cmp_err_skip(ctx, "(");
 		var = proceed_expression(ctx, parent, 0, ef);
 		cmp_err_skip(ctx, ")");
-		if (ef) ef = var->intval;
-		i = proceed_statement(ctx, parent, ef);
-		if (ef) ret = i;
+		int effective = 1;
+		if (ef) effective = var->intval;
+		i = proceed_statement(ctx, parent, ef && effective);
+		if (ef && effective) ret = i;
+		if (cmp_skip(ctx, "else")) {
+			i = proceed_statement(ctx, parent, ef && !effective);
+			if (ef && !effective) ret = i;
+		}
 	} else if (cmp_skip(ctx, "for")) {
 		cmp_err_skip(ctx, "(");
 		if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
@@ -410,21 +415,6 @@ int proceed(context *ctx) {
 		}
 	}
 	return ctx->return_value;
-}
-
-void dump_token_vector(token *tkn) {
-	while (1) {
-		if (tkn->type == T_KEYWORD) {
-			printf("KEYWORD: %s\n", tkn->text);
-		} else if (tkn->type == T_IDENT) {
-			printf("IDENT: %s\n", tkn->text);
-		} else if (tkn->type == T_SYMBOL) {
-			printf("SYMBOL: %s\n", tkn->text);
-		} else if (tkn->type == T_INTVAL) {
-			printf("INT: %d\n", tkn->intval);
-		} else break;
-		tkn++;
-	}
 }
 
 /* ソースファイルのfpを受け取り、token構造体の配列を返します */
@@ -528,7 +518,6 @@ int main(int argc, char **argv) {
 		ctx.token = create_token_vector(fp);
 		ctx.return_value = 0;
 		if (fp != stdin) fclose(fp);
-		// dump_token_vector(ctx.token);
 		return proceed(&ctx);
 	}
 	printf("cantang -- a tiny interpreter\n"
