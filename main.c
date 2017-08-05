@@ -358,7 +358,7 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			}
 		}
 	} else {
-		proceed_expression(ctx, parent, 0, ef);
+		if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
 		cmp_err_skip(ctx, ";");
 	}
 	return ret;

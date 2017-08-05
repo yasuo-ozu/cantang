@@ -12,4 +12,5 @@ test:	cantang
 	./$< tests/02_assign.c
 	./$< tests/03_op.c
 	./$< tests/04_array.c
+	./$< tests/05_for.c
 	@echo "test pass"
