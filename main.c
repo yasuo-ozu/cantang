@@ -70,7 +70,7 @@ typedef struct {
 } context;
 
 int cmp(context *ctx, const char *s) {
-	return ctx->token->type != T_NULL && strcmp(ctx->token->text, s) == 0;
+	return ctx->token->type != T_NULL && ctx->token->type != T_INTVAL && strcmp(ctx->token->text, s) == 0;
 }
 
 int cmp_skip(context *ctx, const char *s) {
@@ -349,6 +349,18 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			ret = proceed_statement(ctx, parent, ef = (ef && var->intval));
 		} while (ef && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
 		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
+	} else if (cmp_skip(ctx, "do")) {
+		token *start = ctx->token;
+		do {
+			ctx->token = start;
+			ret = proceed_statement(ctx, parent, ef);
+			cmp_err_skip(ctx, "while");
+			cmp_err_skip(ctx, "(");
+			var = proceed_expression(ctx, parent, 0, ef);
+		} while (ef && var->intval && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
+		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
+		cmp_err_skip(ctx, ")");
+		cmp_err_skip(ctx, ";");
 	} else if (cmp_skip(ctx, "{")) {
 		block blk = {parent, NULL};
 		while (!cmp_skip(ctx, "}")) {
