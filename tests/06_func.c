@@ -1,4 +1,4 @@
-int func() {
-	return 15;
+int func(int a, int b) {
+	return a * b;
 }
-return func() - 15;
+return func(3, 5) - 15;

@@ -220,11 +220,32 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					if (ef) ret = i ? retvar->intval++ : retvar->intval--;
 					retvar = NULL;
 				} else if (cmp_skip(ctx, "(")) {
+					long long args_val[16];
+					int args_count = 0;
+					do {
+						variable *var = proceed_expression(ctx, ctx->exp_parent, 1, ef);
+						if (ef) { args_val[args_count++] = var->intval; }
+					} while (cmp_skip(ctx, ","));
 					cmp_err_skip(ctx, ")");
 					if (ef) {
+						block *args = calloc(1, sizeof(block));
+						args->parent = ctx->exp_parent;
 						token *tk = ctx->token;
 						ctx->token = (token *) ret;
-						proceed_statement(ctx, ctx->exp_parent, 1);	// ブロック内から呼ぶ場合parent->parent
+						i = 0;
+						do {
+							cmp_skip(ctx, "int"); cmp_skip(ctx, "char");
+							if (ctx->token->type == T_IDENT) {
+								variable *var = calloc(1, sizeof(variable));
+								var->type = VT_INT;
+								var->intval = args_val[i];
+								args->table = map_add(args->table, ctx->token->text, var);
+								ctx->token++;
+							}
+							i++;
+						} while (cmp_skip(ctx, ","));
+						cmp_err_skip(ctx, ")");
+						proceed_statement(ctx, args, 1);	// ブロック内から呼ぶ場合parent->parent
 						ret = ctx->return_value;
 						retvar = NULL;
 						ctx->token = tk;
@@ -286,12 +307,14 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			variable *arrlen = NULL, *var2 = NULL;
 			ctx->token++;
 			if (cmp_skip(ctx, "(")) {
+				if (ef) {
+					var = calloc(1, sizeof(variable));
+					var->type = VT_FUNC;
+					var->intval = (long long) ctx->token;
+					parent->table = map_add(parent->table, name, var);
+				}
 				while (!cmp(ctx, ")") && ctx->token->type != T_NULL) ctx->token++;
 				cmp_err_skip(ctx, ")");
-				var = calloc(1, sizeof(variable));
-				var->type = VT_FUNC;
-				var->intval = (long long) ctx->token;
-				parent->table = map_add(parent->table, name, var);
 				proceed_statement(ctx, parent, 0);
 				return ret;
 			} else {
