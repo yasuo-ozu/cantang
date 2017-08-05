@@ -226,6 +226,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 						ctx->token = (token *) ret;
 						proceed_statement(ctx, ctx->exp_parent, 1);	// ブロック内から呼ぶ場合parent->parent
 						ret = ctx->return_value;
+						retvar = NULL;
 						ctx->token = tk;
 					}
 				} else if (cmp_skip(ctx, "[")) {

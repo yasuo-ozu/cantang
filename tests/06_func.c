@@ -1,5 +1,4 @@
 int func() {
-	print 5;
-	return 1;
+	return 15;
 }
-func();
+return func() - 15;

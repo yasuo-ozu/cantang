@@ -13,4 +13,6 @@ test:	cantang
 	./$< tests/03_op.c
 	./$< tests/04_array.c
 	./$< tests/05_for.c
+	./$< tests/06_func.c
+	./$< tests/07_dowhile.c
 	@echo "test pass"
