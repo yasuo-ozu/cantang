@@ -228,8 +228,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					} while (cmp_skip(ctx, ","));
 					cmp_err_skip(ctx, ")");
 					if (ef) {
-						block *args = calloc(1, sizeof(block));
-						args->parent = ctx->global;
+						block args = {ctx->global, NULL};
 						token *tk = ctx->token;
 						ctx->token = (token *) ret;
 						i = 0;
@@ -239,13 +238,13 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 								variable *var = calloc(1, sizeof(variable));
 								var->type = VT_INT;
 								var->intval = args_val[i];
-								args->table = map_add(args->table, ctx->token->text, var);
+								args.table = map_add(args.table, ctx->token->text, var);
 								ctx->token++;
 							}
 							i++;
 						} while (cmp_skip(ctx, ","));
 						cmp_err_skip(ctx, ")");
-						proceed_statement(ctx, args, 1);
+						proceed_statement(ctx, &args, 1);
 						ret = ctx->return_value;
 						retvar = NULL;
 						ctx->token = tk;
