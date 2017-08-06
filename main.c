@@ -20,6 +20,7 @@ typedef struct token {
 /* グローバル変数 */
 const char * const keywords[] = {
 	"int", "print", "puts", "return", "if", "break", "continue", "for", "while",
+	"void", "char", "signed", "unsigned", "long", "const",
 	NULL
 };
 
