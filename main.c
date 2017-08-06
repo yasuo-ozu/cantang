@@ -143,6 +143,14 @@ int proceed_binary_operator(token *op, int a, int b) {
 	else err("Not implemented: %s\n", op->text);
 }
 
+int type_cmp_skip(context *ctx) {
+	int ret = 0;
+	while (cmp_skip(ctx, "int") || cmp_skip(ctx, "void") || cmp_skip(ctx, "char")
+	    || cmp_skip(ctx, "signed") || cmp_skip(ctx, "unsigned") || cmp_skip(ctx, "long")
+		|| cmp_skip(ctx, "const") || cmp_skip(ctx, "*")) ret++;
+	return ret;
+}
+
 int proceed_statement(context *, block *, int);
 variable *proceed_expression(context *, block *, int, int);
 variable *proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
@@ -223,7 +231,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 						ctx->token = (token *) ret;
 						i = 0;
 						do {
-							cmp_skip(ctx, "int"); cmp_skip(ctx, "char");
+							type_cmp_skip(ctx);
 							if (ctx->token->type == T_IDENT) {
 								variable *var = calloc(1, sizeof(variable));
 								var->type = VT_INT;
@@ -287,9 +295,8 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_BREAK;
 	} else if (cmp_skip(ctx, "continue")) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_CONTINUE;
-	} else if (cmp_skip(ctx, "int") || cmp_skip(ctx, "long") || cmp_skip(ctx, "char")) {
+	} else if (type_cmp_skip(ctx)) {
 		do {
-			cmp_skip(ctx, "long"); cmp_skip(ctx, "*");
 			if (ef && (ctx->token->type != T_IDENT ||
 				search(parent, ctx->token->text) != NULL))
 				err("Identifier already used: %s\n", ctx->token->text);
