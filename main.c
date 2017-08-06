@@ -13,13 +13,13 @@ typedef enum {
 typedef struct token {
 	tokenType type;
 	char *text;		// 対応するソースコード。T_IDENT, T_SYMBOLまたはT_KEYWORDのときに使う
-	int intval;		// 整数。T_INTVALのときに使う
+	long long intval;		// 整数。T_INTVALのときに使う
 	int symbol;		// symbols[]内のインデックス。T_SYMBOLの時に使う
 } token;
 
 /* グローバル変数 */
 const char * const keywords[] = {
-	"int", "print", "return", "if", "break", "continue", "for", "while",
+	"int", "print", "puts", "return", "if", "break", "continue", "for", "while",
 	NULL
 };
 
@@ -271,6 +271,13 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		var = proceed_expression(ctx, parent, 0, ef);
 		if (ef) printf("%lld\n", var->intval);
 		cmp_err_skip(ctx, ";");
+	} else if (cmp_skip(ctx, "puts")) {
+		var = proceed_expression(ctx, parent, 0, ef);
+		if (ef) {
+			for (var = (variable *)var->intval; var->intval; var++)
+				putchar(var->intval);
+		}
+		cmp_err_skip(ctx, ";");
 	} else if (cmp_skip(ctx, "return")) {
 		var = proceed_expression(ctx, parent, 0, ef);
 		if (ef) ctx->return_value = var->intval;
@@ -441,6 +448,26 @@ token *create_token_vector(FILE *fp) {
 				c = fgetc(fp);
 			} while ('0' <= c && c <= '9');
 			tok[i].intval = val;
+		} else if (c == '"') {
+			char str[1024], *s = str;
+			while ((c = fgetc(fp)) != '"') {
+				if (c == '\\') {
+					c = fgetc(fp);
+					if      (c == 'n') c = '\n';
+					else if (c == 't') c = '\t';
+				}
+				*s++ = c;
+			}
+			*s++ = '\0';
+			variable *var = calloc(strlen(str) + 1, sizeof(variable));
+			tok[i].type = T_INTVAL;
+			tok[i].intval = (long long) var;
+			for (s = str; ; s++, var++) {
+				var->type = VT_INT;
+				var->intval = (long long) *s;
+				if (!*s) break;
+			}
+			c = fgetc(fp);
 		} else {
 			char s[256];
 			int j = 0;

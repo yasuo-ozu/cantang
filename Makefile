@@ -15,4 +15,5 @@ test:	cantang
 	./$< tests/05_for.c
 	./$< tests/06_func.c
 	./$< tests/07_dowhile.c
+	./$< tests/08_string.c
 	@echo "test pass"
