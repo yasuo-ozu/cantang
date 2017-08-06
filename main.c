@@ -249,7 +249,10 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					}
 				} else if (cmp_skip(ctx, "[")) {
 					variable *var = proceed_expression(ctx, blk, 0, ef);
-					if (ef) retvar = (variable *)(ret + sizeof(variable) * var->intval);
+					if (ef) {
+						retvar = (variable *)(ret += sizeof(variable) * var->intval);
+						ret = retvar->intval;
+					}
 					cmp_err_skip(ctx, "]");
 				} else err("Not implemented: %s\n", ctx->token->text);
 			}
@@ -271,6 +274,23 @@ variable *proceed_expression(context *ctx, block *blk, int isVector, int ef) {
 #define RTYPE_RETURN    1
 #define RTYPE_BREAK     2
 #define RTYPE_CONTINUE  3
+
+variable *allocate_array_mem(variable *arrlens[], int max, int index) {
+	variable *var, *var2;
+	int len = arrlens[index]->intval, i;
+	if (index == max - 1) {
+		var = calloc(len, sizeof(variable));
+		var->type = VT_ARRAY;
+	} else {
+		var = calloc(len, sizeof(variable));
+		for (i = 0; i < len; i++) {
+			var2 = allocate_array_mem(arrlens, max, index + 1);
+			var[i].intval = (long long) var2;
+			var[i].type = VT_ARRAY;
+		}
+	}
+	return var;
+}
 
 int proceed_statement(context *ctx, block *parent, int ef) {
 	int ret = RTYPE_NORMAL, i;
@@ -301,7 +321,7 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 				search(parent, ctx->token->text) != NULL))
 				err("Identifier already used: %s\n", ctx->token->text);
 			char *name = ctx->token->text;
-			variable *arrlen = NULL, *var2 = NULL;
+			variable *arrlens[16], *var2 = NULL;
 			ctx->token++;
 			if (cmp_skip(ctx, "(")) {
 				if (ef) {
@@ -315,15 +335,18 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 				proceed_statement(ctx, parent, 0);
 				return ret;
 			} else {
+				i = 0;
 				if (cmp_skip(ctx, "[")) {
-					arrlen = proceed_expression(ctx, parent, 0, ef);
-					cmp_err_skip(ctx, "]");
+					do {
+						arrlens[i++] = proceed_expression(ctx, parent, 0, ef);
+						cmp_err_skip(ctx, "]");
+					} while (cmp_skip(ctx, "["));
 				}
 				if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
 				if (ef) {
 					var = calloc(1, sizeof(variable));
-					if (arrlen != NULL) {
-						var->intval = (long long) calloc(arrlen->intval, sizeof(variable));
+					if (i > 0) {
+						var->intval = (long long) allocate_array_mem(arrlens, i, 0);
 						var->type = VT_ARRAY;
 					} else {
 						if (var2 != NULL) var->intval = var2->intval;
