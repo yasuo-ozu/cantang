@@ -69,6 +69,8 @@ typedef struct {
 	block *global;
 } context;
 
+#define err(...)	{ fprintf(stderr, __VA_ARGS__); exit(1); }
+
 int cmp(context *ctx, const char *s) {
 	return ctx->token->type != T_NULL && ctx->token->type != T_INTVAL && strcmp(ctx->token->text, s) == 0;
 }
@@ -81,10 +83,7 @@ int cmp_skip(context *ctx, const char *s) {
 
 void cmp_err_skip(context *ctx, const char *s) {
 	int ret = cmp_skip(ctx, s);
-	if (!ret) {
-		fprintf(stderr, "require %s\n", s);
-		exit(1);
-	}
+	if (!ret) err("require %s", s);
 }
 
 void map_free(map *m) {
@@ -141,10 +140,7 @@ int proceed_binary_operator(token *op, int a, int b) {
 	else if (strcmp(op->text, "&&") == 0) return a && b;
 	else if (strcmp(op->text, "||") == 0) return a || b;
 	else if (strcmp(op->text, "," ) == 0) return b;
-	else {
-		fprintf(stderr, "Not implemented: %s\n", op->text);
-		exit(1);
-	}
+	else err("Not implemented: %s\n", op->text);
 }
 
 int proceed_statement(context *, block *, int);
@@ -164,10 +160,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 		} else {
 			if (ef) {
 				retvar = search(blk, ctx->token->text);
-				if (retvar == NULL) {
-					fprintf(stderr, "Invalid terminal term: %s\n", ctx->token->text);
-					exit(1);
-				}
+				if (retvar == NULL) err("Invalid terminal term: %s\n", ctx->token->text);
 			}
 			ctx->token++;
 		}
@@ -181,10 +174,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 		else if (strcmp(op->text, "~") == 0) ret = ~ret;
 		else if ((i = (strcmp(op->text, "++") == 0)) || strcmp(op->text, "--") == 0) {
 			if (ef) ret = i ? ++retvar->intval : --retvar->intval;
-		} else {
-			fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
-			exit(1);
-		}
+		} else err("Not implemented: %s\n", ctx->token->text);
 		retvar = NULL;	// You have to duplicate variable
 	} else {
 		retvar = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
@@ -253,10 +243,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					variable *var = proceed_expression(ctx, blk, 0, ef);
 					if (ef) retvar = (variable *)(ret + sizeof(variable) * var->intval);
 					cmp_err_skip(ctx, "]");
-				} else {
-					fprintf(stderr, "Not implemented: %s\n", ctx->token->text);
-					exit(1);
-				}
+				} else err("Not implemented: %s\n", ctx->token->text);
 			}
 		}
 	}
@@ -297,10 +284,8 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		do {
 			cmp_skip(ctx, "long"); cmp_skip(ctx, "*");
 			if (ef && (ctx->token->type != T_IDENT ||
-				search(parent, ctx->token->text) != NULL)) {
-				fprintf(stderr, "Identifier already used: %s\n", ctx->token->text);
-				exit(1);
-			}
+				search(parent, ctx->token->text) != NULL))
+				err("Identifier already used: %s\n", ctx->token->text);
 			char *name = ctx->token->text;
 			variable *arrlen = NULL, *var2 = NULL;
 			ctx->token++;
@@ -392,9 +377,7 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		block blk = {parent, NULL};
 		while (!cmp_skip(ctx, "}")) {
 			i = proceed_statement(ctx, &blk, ef);
-			if (ef) {
-				ret = i; ef = !ret;
-			}
+			if (ef) { ret = i; ef = !ret; }
 		}
 	} else {
 		if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
@@ -410,9 +393,7 @@ int proceed(context *ctx) {
 	ctx->global = &blk;
 	while (ctx->token->type != T_NULL) {
 		i = proceed_statement(ctx, &blk, ef);
-		if (ef) {
-			ret = i; ef = !ret;
-		}
+		if (ef) { ret = i; ef = !ret; }
 	}
 	return ctx->return_value;
 }
@@ -490,10 +471,7 @@ token *create_token_vector(FILE *fp) {
 					j++;
 				}
 				s[j] = '\0';
-				if (j == 0) {
-					fprintf(stderr, "Bad char: %c\n", s[0]);
-					exit(1);
-				}
+				if (j == 0) err("Bad char: %c\n", s[0]);
 				tok[i].symbol = symb;
 			}
 			tok[i].text = strdup(s);
