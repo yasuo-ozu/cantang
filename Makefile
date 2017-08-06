@@ -1,7 +1,7 @@
 .PHONY: clean test
 cantang:	main.c
 	gcc $< -o $@ -g3 -Wall -Wextra
-	cat $< |sed -e '/^$/d' -e '/^\/\//d' -e '/\/\*/d' | wc -l  
+	cat $< |sed -e '/^$$/d' -e '/^\/\//d' -e '/\/\*/d' | wc -l  
 clean:
 	rm -rf cantang
 
