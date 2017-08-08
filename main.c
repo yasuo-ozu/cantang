@@ -29,13 +29,13 @@ struct {
 	int priority[3];	// PRE, POST, BINARY
 } symbols[] = {
 	{NULL,  { 0,  0,  0}},
-	{"++",  { 2,  1,  0}}, {"--",  { 2,  1,  0}}, {"~",   { 2,  0,  0}}, {"!",   { 2,  0,  0}},
-	{"*",   { 2,  0,  4}}, {"/",   { 0,  0,  4}}, {"%",   { 0,  0,  4}},
-	{"+",   { 2,  0,  5}}, {"-",   { 2,  0,  5}},
+	{"++",  { 2,  1,  0}}, {"--",  { 2,  1,  0}}, {"->",  { 0,  0,  1}}, {".",   { 0, 0,   1}},
+	{"~",   { 2,  0,  0}}, {"!",   { 2,  0,  0}}, {"*",   { 2,  0,  4}}, {"/",   { 0,  0,  4}},
+	{"%",   { 0,  0,  4}}, {"+",   { 2,  0,  5}}, {"-",   { 2,  0,  5}},
 	{"<<",  { 0,  0,  6}}, {">>",  { 0,  0,  6}},
 	{"<",   { 0,  0,  7}}, {"<=",  { 0,  0,  7}}, {">",   { 0,  0,  7}}, {">=",  { 0,  0,  7}},
 	{"==",  { 0,  0,  8}}, {"!=",  { 0,  0,  8}},
-	{"&",   { 0,  0,  9}}, {"^",   { 0,  0, 10}}, {"|",   { 0,  0, 11}},
+	{"&",   { 2,  0,  9}}, {"^",   { 0,  0, 10}}, {"|",   { 0,  0, 11}},
 	{"&&",  { 0,  0, 12}}, {"||",  { 0,  0, 13}},
 	{"=",   { 0,  0, 15}}, {"+=",  { 0,  0, 15}}, {"-=",  { 0,  0, 15}}, {"*=",  { 0,  0, 15}},
 	{"/=",  { 0,  0, 15}}, {"%=",  { 0,  0, 15}}, {"<<=", { 0,  0, 15}}, {">>=", { 0,  0, 15}},
@@ -54,9 +54,10 @@ typedef struct map {
 
 typedef struct {
 	enum {
-		VT_NULL = 0, VT_INT, VT_FUNC, VT_ARRAY
+		VT_NULL = 0, VT_INT, VT_FUNC, VT_ARRAY, VT_STRUCT
 	} type;
 	long long intval;
+	map *table;		// for struct
 } variable;
 
 typedef struct block {
@@ -104,6 +105,23 @@ map *map_add(map *m, char *key, void *value) {
 	return n;
 }
 
+char *map_key(map *m, int index) {
+	if (index == 0) return m->key;
+	else return map_key(m->next, index - 1);
+}
+
+int map_count(map *m) {
+	if (m == NULL) return 0;
+	return 1 + map_count(m->next);
+}
+
+int map_index(map *m, char *key) {
+	int i;
+	for (i = 0; m != NULL; m = m->next, i++)
+		if (strcmp(m->key, key) == 0) return i;
+	return -1;
+}
+
 void *map_search(map *m, const char *key) {
 	while (m != NULL) {
 		if (strcmp(m->key, key) == 0) return m->value;
@@ -146,9 +164,15 @@ int proceed_binary_operator(token *op, int a, int b) {
 
 int type_cmp_skip(context *ctx) {
 	int ret = 0;
-	while (cmp_skip(ctx, "int") || cmp_skip(ctx, "void") || cmp_skip(ctx, "char")
-	    || cmp_skip(ctx, "signed") || cmp_skip(ctx, "unsigned") || cmp_skip(ctx, "long")
-		|| cmp_skip(ctx, "const") || cmp_skip(ctx, "*")) ret++;
+	while (1) {
+		if (cmp_skip(ctx, "int") || cmp_skip(ctx, "void") || cmp_skip(ctx, "char")
+			|| cmp_skip(ctx, "signed") || cmp_skip(ctx, "unsigned") || cmp_skip(ctx, "long")
+			|| cmp_skip(ctx, "const") || cmp_skip(ctx, "*")) ret++;
+		else if (cmp_skip(ctx, "struct")) {
+			ctx->token++;
+			ret++;
+		} else break;
+	}
 	return ret;
 }
 
@@ -156,7 +180,7 @@ int proceed_statement(context *, block *, int);
 variable *proceed_expression(context *, block *, int, int);
 variable *proceed_expression_internal(context *ctx, block *blk, int isVector, int priority, int ef) {
 	variable *retvar = NULL;
-	long long ret = 0, i;
+	long long ret = 0, i = 0;
 	token *op;
 	if (priority == 0) {
 		if (ctx->token->type == T_INTVAL) {
@@ -177,14 +201,22 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 		op = ctx->token++;
 		retvar = proceed_expression_internal(ctx, blk, isVector, priority, ef);
 		ret = retvar->intval;
-		if      (strcmp(op->text, "+") == 0) ret = +ret;
-		else if (strcmp(op->text, "-") == 0) ret = -ret;
-		else if (strcmp(op->text, "!") == 0) ret = !ret;
-		else if (strcmp(op->text, "~") == 0) ret = ~ret;
-		else if ((i = (strcmp(op->text, "++") == 0)) || strcmp(op->text, "--") == 0) {
-			if (ef) ret = i ? ++retvar->intval : --retvar->intval;
-		} else err("Not implemented: %s\n", ctx->token->text);
-		retvar = NULL;	// You have to duplicate variable
+		if (strcmp(op->text, "*") == 0) retvar = (variable *) ret; 
+		else if (strcmp(op->text, "&") == 0) {
+			variable *var = calloc(1, sizeof(variable));
+			var->type = VT_INT;
+			var->intval = (long long) retvar;
+			retvar = var;
+		} else {
+			if      (strcmp(op->text, "+") == 0) ret = +ret;
+			else if (strcmp(op->text, "-") == 0) ret = -ret;
+			else if (strcmp(op->text, "!") == 0) ret = !ret;
+			else if (strcmp(op->text, "~") == 0) ret = ~ret;
+			else if ((i = (strcmp(op->text, "++") == 0)) || strcmp(op->text, "--") == 0) {
+				if (ef) ret = i ? ++retvar->intval : --retvar->intval;
+			} else err("Not implemented: %s\n", ctx->token->text);
+			retvar = NULL;	// You have to duplicate variable
+		}
 	} else {
 		retvar = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef);
 		if (ef) ret = retvar->intval;
@@ -196,6 +228,13 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					if (strcmp(op->text, "=") == 0) ret = retvar->intval = right->intval;
 					else ret = proceed_binary_operator(op, ret, right->intval);
 				}
+				retvar = NULL;
+			} else if ((i = cmp_skip(ctx, "->")) || cmp_skip(ctx, ".")) {
+				if (ef) {
+					if (i) retvar = (variable *)retvar->intval;
+					retvar += map_index(retvar->table, ctx->token->text);
+				}
+				ctx->token++;
 			} else {
 				do {
 					int effective = 1;
@@ -205,8 +244,8 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					variable *right = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef && effective);
 					if (ef) ret = proceed_binary_operator(op, ret, right->intval);
 				} while (symbols[ctx->token->symbol].priority[2] == priority);
+				retvar = NULL;
 			}
-			retvar = NULL;
 		} else if (priority == 14 && cmp_skip(ctx, "?")) {
 			variable *a = proceed_expression_internal(ctx, blk, isVector, priority, ef);
 			cmp_err_skip(ctx, ":");
@@ -219,11 +258,16 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					if (ef) ret = i ? retvar->intval++ : retvar->intval--;
 					retvar = NULL;
 				} else if (cmp_skip(ctx, "(")) {
-					long long args_val[16];
+					variable *args_val[16];
 					int args_count = 0;
 					do {
 						variable *var = proceed_expression(ctx, blk, 1, ef);
-						if (ef) { args_val[args_count++] = var->intval; }
+						if (ef) {
+							int size = var->table != NULL ? map_count(var->table) : 1;
+							variable *var2 = calloc(size, sizeof(variable));
+							memcpy(var2, var, size * sizeof(variable));
+							args_val[args_count++] = var2;
+						}
 					} while (cmp_skip(ctx, ","));
 					cmp_err_skip(ctx, ")");
 					if (ef) {
@@ -234,10 +278,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 						do {
 							type_cmp_skip(ctx);
 							if (ctx->token->type == T_IDENT) {
-								variable *var = calloc(1, sizeof(variable));
-								var->type = VT_INT;
-								var->intval = args_val[i];
-								args.table = map_add(args.table, ctx->token->text, var);
+								args.table = map_add(args.table, ctx->token->text, args_val[i]);
 								ctx->token++;
 							}
 							i++;
@@ -316,6 +357,36 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_BREAK;
 	} else if (cmp_skip(ctx, "continue")) {
 		cmp_err_skip(ctx, ";"); ret = RTYPE_CONTINUE;
+	} else if (cmp_skip(ctx, "struct")) {
+		if (ctx->token->type != T_IDENT) err("struct name is invalid");
+		if ((var = search(parent, ctx->token->text)) != NULL) {
+			ctx->token++;
+			do {
+				if (ef) {
+					variable *var2 = calloc(map_count(var->table), sizeof(variable));
+					var2->table = var->table;
+					parent->table = map_add(parent->table, ctx->token->text, var2);
+				}
+				ctx->token++;
+			} while (cmp_skip(ctx, ","));
+		} else {
+			if (ef) {
+				var = calloc(1, sizeof(variable));
+				var->type = VT_STRUCT;
+				parent->table = map_add(parent->table, ctx->token->text, var);
+			}
+			ctx->token++;
+			cmp_err_skip(ctx, "{");
+			while (type_cmp_skip(ctx)) {
+				do {
+					if (ef) var->table = map_add(var->table, ctx->token->text, NULL);
+					ctx->token++;
+				} while (cmp_skip(ctx, ","));
+				cmp_err_skip(ctx, ";");
+			}
+			cmp_err_skip(ctx, "}");
+		}
+		cmp_err_skip(ctx, ";");
 	} else if (type_cmp_skip(ctx)) {
 		do {
 			if (ef && (ctx->token->type != T_IDENT ||

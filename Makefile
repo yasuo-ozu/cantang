@@ -16,4 +16,5 @@ test:	cantang
 	./$< tests/07_dowhile.c
 	./$< tests/08_string.c
 	./$< tests/09_array_dim.c
+	./$< tests/10_struct.c
 	@echo "test pass"
