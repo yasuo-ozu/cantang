@@ -390,7 +390,7 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 	} else if (type_cmp_skip(ctx)) {
 		do {
 			if (ef && (ctx->token->type != T_IDENT ||
-				search(parent, ctx->token->text) != NULL))
+				map_search(parent->table, ctx->token->text) != NULL))
 				err("Identifier already used: %s\n", ctx->token->text);
 			char *name = ctx->token->text;
 			variable *arrlens[16], *var2 = NULL;
@@ -509,7 +509,7 @@ int proceed(context *ctx) {
 
 /* ソースファイルのfpを受け取り、token構造体の配列を返します */
 token *create_token_vector(FILE *fp) {
-	token *tok = malloc(sizeof(tok) * 1024);
+	token *tok = malloc(sizeof(tok) * 1024 * 32);
 	int i = 0;
 	int c = fgetc(fp);
 	while (1) {
