@@ -29,6 +29,7 @@ https://github.com/yasuo-ozu/cantang/tree/master/tests
 - if-else, for, while, do-while, return, break, continue
 - 多次元配列
 - 関数宣言 , 引数 , 再帰関数
+- struct
 
 ### 対応していない(C言語の)機能
 
