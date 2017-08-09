@@ -28,21 +28,14 @@ struct {
 	const char * const text;
 	int priority[3];	// PRE, POST, BINARY
 } symbols[] = {
-	{NULL,  { 0,  0,  0}},
-	{"++",  { 2,  1,  0}}, {"--",  { 2,  1,  0}}, {"->",  { 0,  0,  1}}, {".",   { 0, 0,   1}},
-	{"~",   { 2,  0,  0}}, {"!",   { 2,  0,  0}}, {"*",   { 2,  0,  4}}, {"/",   { 0,  0,  4}},
-	{"%",   { 0,  0,  4}}, {"+",   { 2,  0,  5}}, {"-",   { 2,  0,  5}},
-	{"<<",  { 0,  0,  6}}, {">>",  { 0,  0,  6}},
-	{"<",   { 0,  0,  7}}, {"<=",  { 0,  0,  7}}, {">",   { 0,  0,  7}}, {">=",  { 0,  0,  7}},
-	{"==",  { 0,  0,  8}}, {"!=",  { 0,  0,  8}},
-	{"&",   { 2,  0,  9}}, {"^",   { 0,  0, 10}}, {"|",   { 0,  0, 11}},
-	{"&&",  { 0,  0, 12}}, {"||",  { 0,  0, 13}},
-	{"=",   { 0,  0, 15}}, {"+=",  { 0,  0, 15}}, {"-=",  { 0,  0, 15}}, {"*=",  { 0,  0, 15}},
-	{"/=",  { 0,  0, 15}}, {"%=",  { 0,  0, 15}}, {"<<=", { 0,  0, 15}}, {">>=", { 0,  0, 15}},
-	{"&=",  { 0,  0, 15}}, {"^=",  { 0,  0, 15}}, {"|=",  { 0,  0, 15}},
-	{",",   { 0,  0, 16}}, {"(",   { 0,  1,  0}}, {")",   { 0,  0,  0}}, {"{",   { 0,  0,  0}},
-	{"}",   { 0,  0,  0}}, {"[",   { 0,  1,  0}}, {"]",   { 0,  0,  0}}, {"?",   { 0,  0,  0}},
-	{":",   { 0,  0,  0}}, {";",   { 0,  0,  0}},
+	{NULL, {0,0,0}}, {"++", {2, 1, 0}}, {"--", {2, 1, 0}}, {"->", {0, 0, 1}}, {".", {0, 0, 1}}, {"~", {2, 0, 0}},
+	{"!", {2, 0, 0}}, {"*", {2, 0, 4}}, {"/", {0, 0, 4}}, {"%", {0, 0, 4}}, {"+", {2, 0, 5}}, {"-", {2, 0, 5}},
+	{"<<", {0, 0, 6}}, {">>", {0, 0, 6}}, {"<", {0, 0, 7}}, {"<=", {0, 0, 7}}, {">", {0, 0, 7}}, {">=", {0, 0, 7}},
+	{"==", {0, 0, 8}}, {"!=", {0, 0, 8}}, {"&", {2, 0, 9}}, {"^", {0, 0, 10}}, {"|", { 0,  0, 11}}, {"&&", {0, 0, 12}},
+	{"||", {0, 0, 13}}, {"=", {0, 0, 15}}, {"+=", {0, 0, 15}}, {"-=", {0, 0, 15}}, {"*=", {0, 0, 15}},
+	{"/=", {0, 0, 15}}, {"%=", {0, 0, 15}}, {"<<=", {0, 0, 15}}, {">>=", {0, 0, 15}}, {"&=", {0, 0, 15}},
+	{"^=", {0, 0, 15}}, {"|=", {0, 0, 15}}, {",", {0, 0, 16}}, {"(", {0, 1, 0}}, {")", {0, 0, 0}}, {"{", {0, 0, 0}},
+	{"}", {0, 0, 0}}, {"[", {0, 1, 0}}, {"]", {0, 0, 0}}, {"?", {0, 0, 0}}, {":", {0, 0, 0}}, {";", {0, 0, 0}},
 	{NULL,  { 0,  0,  0}}
 };
 
@@ -168,10 +161,8 @@ int type_cmp_skip(context *ctx) {
 		if (cmp_skip(ctx, "int") || cmp_skip(ctx, "void") || cmp_skip(ctx, "char")
 			|| cmp_skip(ctx, "signed") || cmp_skip(ctx, "unsigned") || cmp_skip(ctx, "long")
 			|| cmp_skip(ctx, "const") || cmp_skip(ctx, "*")) ret++;
-		else if (cmp_skip(ctx, "struct")) {
-			ctx->token++;
-			ret++;
-		} else break;
+		else if (cmp_skip(ctx, "struct")) ctx->token++, ret++;
+		else break;
 	}
 	return ret;
 }
@@ -335,101 +326,9 @@ variable *allocate_array_mem(variable *arrlens[], int max, int index) {
 }
 
 int proceed_statement(context *ctx, block *parent, int ef) {
-	int ret = RTYPE_NORMAL, i;
+	int ret = RTYPE_NORMAL, i = 0;
 	variable *var = NULL;
-	if (cmp_skip(ctx, "print")) {
-		var = proceed_expression(ctx, parent, 0, ef);
-		if (ef) printf("%lld\n", var->intval);
-		cmp_err_skip(ctx, ";");
-	} else if (cmp_skip(ctx, "puts")) {
-		var = proceed_expression(ctx, parent, 0, ef);
-		if (ef) {
-			for (var = (variable *)var->intval; var->intval; var++)
-				putchar(var->intval);
-		}
-		cmp_err_skip(ctx, ";");
-	} else if (cmp_skip(ctx, "return")) {
-		var = proceed_expression(ctx, parent, 0, ef);
-		if (ef) ctx->return_value = var->intval;
-		cmp_err_skip(ctx, ";");
-		ret = RTYPE_RETURN;
-	} else if (cmp_skip(ctx, "break")) {
-		cmp_err_skip(ctx, ";"); ret = RTYPE_BREAK;
-	} else if (cmp_skip(ctx, "continue")) {
-		cmp_err_skip(ctx, ";"); ret = RTYPE_CONTINUE;
-	} else if (cmp_skip(ctx, "struct")) {
-		if (ctx->token->type != T_IDENT) err("struct name is invalid");
-		if ((var = search(parent, ctx->token->text)) != NULL) {
-			ctx->token++;
-			do {
-				if (ef) {
-					variable *var2 = calloc(map_count(var->table), sizeof(variable));
-					var2->table = var->table;
-					parent->table = map_add(parent->table, ctx->token->text, var2);
-				}
-				ctx->token++;
-			} while (cmp_skip(ctx, ","));
-		} else {
-			if (ef) {
-				var = calloc(1, sizeof(variable));
-				var->type = VT_STRUCT;
-				parent->table = map_add(parent->table, ctx->token->text, var);
-			}
-			ctx->token++;
-			cmp_err_skip(ctx, "{");
-			while (type_cmp_skip(ctx)) {
-				do {
-					if (ef) var->table = map_add(var->table, ctx->token->text, NULL);
-					ctx->token++;
-				} while (cmp_skip(ctx, ","));
-				cmp_err_skip(ctx, ";");
-			}
-			cmp_err_skip(ctx, "}");
-		}
-		cmp_err_skip(ctx, ";");
-	} else if (type_cmp_skip(ctx)) {
-		do {
-			if (ef && (ctx->token->type != T_IDENT ||
-				map_search(parent->table, ctx->token->text) != NULL))
-				err("Identifier already used: %s\n", ctx->token->text);
-			char *name = ctx->token->text;
-			variable *arrlens[16], *var2 = NULL;
-			ctx->token++;
-			if (cmp_skip(ctx, "(")) {
-				if (ef) {
-					var = calloc(1, sizeof(variable));
-					var->type = VT_FUNC;
-					var->intval = (long long) ctx->token;
-					parent->table = map_add(parent->table, name, var);
-				}
-				while (!cmp(ctx, ")") && ctx->token->type != T_NULL) ctx->token++;
-				cmp_err_skip(ctx, ")");
-				proceed_statement(ctx, parent, 0);
-				return ret;
-			} else {
-				i = 0;
-				if (cmp_skip(ctx, "[")) {
-					do {
-						arrlens[i++] = proceed_expression(ctx, parent, 0, ef);
-						cmp_err_skip(ctx, "]");
-					} while (cmp_skip(ctx, "["));
-				}
-				if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
-				if (ef) {
-					var = calloc(1, sizeof(variable));
-					if (i > 0) {
-						var->intval = (long long) allocate_array_mem(arrlens, i, 0);
-						var->type = VT_ARRAY;
-					} else {
-						if (var2 != NULL) var->intval = var2->intval;
-						var->type = VT_INT;
-					}
-					parent->table = map_add(parent->table, name, var);
-				}
-			}
-		} while (cmp_skip(ctx, ","));
-		cmp_err_skip(ctx, ";");
-	} else if (cmp_skip(ctx, "if")) {
+	if (cmp_skip(ctx, "if")) {
 		cmp_err_skip(ctx, "(");
 		var = proceed_expression(ctx, parent, 0, ef);
 		cmp_err_skip(ctx, ")");
@@ -470,18 +369,6 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			ret = proceed_statement(ctx, parent, ef = (ef && var->intval));
 		} while (ef && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
 		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
-	} else if (cmp_skip(ctx, "do")) {
-		token *start = ctx->token;
-		do {
-			ctx->token = start;
-			ret = proceed_statement(ctx, parent, ef);
-			cmp_err_skip(ctx, "while");
-			cmp_err_skip(ctx, "(");
-			var = proceed_expression(ctx, parent, 0, ef);
-		} while (ef && var->intval && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
-		if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
-		cmp_err_skip(ctx, ")");
-		cmp_err_skip(ctx, ";");
 	} else if (cmp_skip(ctx, "{")) {
 		block blk = {parent, NULL};
 		while (!cmp_skip(ctx, "}")) {
@@ -489,7 +376,105 @@ int proceed_statement(context *ctx, block *parent, int ef) {
 			if (ef) { ret = i; ef = !ret; }
 		}
 	} else {
-		if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
+		if (cmp_skip(ctx, "print")) {
+			var = proceed_expression(ctx, parent, 0, ef);
+			if (ef) printf("%lld\n", var->intval);
+		} else if (cmp_skip(ctx, "puts")) {
+			var = proceed_expression(ctx, parent, 0, ef);
+			if (ef) {
+				for (var = (variable *)var->intval; var->intval; var++)
+					putchar(var->intval);
+			}
+		} else if (cmp_skip(ctx, "return")) {
+			var = proceed_expression(ctx, parent, 0, ef);
+			if (ef) ctx->return_value = var->intval;
+			ret = RTYPE_RETURN;
+		} else if ((i = cmp_skip(ctx, "break")) || cmp_skip(ctx, "continue")) {
+			ret = i ? RTYPE_BREAK : RTYPE_CONTINUE;
+		} else if (cmp_skip(ctx, "struct")) {
+			if (ctx->token->type != T_IDENT) err("struct name is invalid");
+			if ((var = search(parent, ctx->token->text)) != NULL) {
+				ctx->token++;
+				do {
+					if (ef) {
+						variable *var2 = calloc(map_count(var->table), sizeof(variable));
+						var2->table = var->table;
+						parent->table = map_add(parent->table, ctx->token->text, var2);
+					}
+					ctx->token++;
+				} while (cmp_skip(ctx, ","));
+			} else {
+				if (ef) {
+					var = calloc(1, sizeof(variable));
+					var->type = VT_STRUCT;
+					parent->table = map_add(parent->table, ctx->token->text, var);
+				}
+				ctx->token++;
+				cmp_err_skip(ctx, "{");
+				while (type_cmp_skip(ctx)) {
+					do {
+						if (ef) var->table = map_add(var->table, ctx->token->text, NULL);
+						ctx->token++;
+					} while (cmp_skip(ctx, ","));
+					cmp_err_skip(ctx, ";");
+				}
+				cmp_err_skip(ctx, "}");
+			}
+		} else if (type_cmp_skip(ctx)) {
+			do {
+				if (ef && (ctx->token->type != T_IDENT ||
+					map_search(parent->table, ctx->token->text) != NULL))
+					err("Identifier already used: %s\n", ctx->token->text);
+				char *name = ctx->token->text;
+				variable *arrlens[16], *var2 = NULL;
+				ctx->token++;
+				if (cmp_skip(ctx, "(")) {
+					if (ef) {
+						var = calloc(1, sizeof(variable));
+						var->type = VT_FUNC;
+						var->intval = (long long) ctx->token;
+						parent->table = map_add(parent->table, name, var);
+					}
+					while (!cmp(ctx, ")") && ctx->token->type != T_NULL) ctx->token++;
+					cmp_err_skip(ctx, ")");
+					proceed_statement(ctx, parent, 0);
+					return ret;
+				} else {
+					i = 0;
+					if (cmp_skip(ctx, "[")) {
+						do {
+							arrlens[i++] = proceed_expression(ctx, parent, 0, ef);
+							cmp_err_skip(ctx, "]");
+						} while (cmp_skip(ctx, "["));
+					}
+					if (cmp_skip(ctx, "=")) var2 = proceed_expression(ctx, parent, 1, ef);
+					if (ef) {
+						var = calloc(1, sizeof(variable));
+						if (i > 0) {
+							var->intval = (long long) allocate_array_mem(arrlens, i, 0);
+							var->type = VT_ARRAY;
+						} else {
+							if (var2 != NULL) var->intval = var2->intval;
+							var->type = VT_INT;
+						}
+						parent->table = map_add(parent->table, name, var);
+					}
+				}
+			} while (cmp_skip(ctx, ","));
+		} else if (cmp_skip(ctx, "do")) {
+			token *start = ctx->token;
+			do {
+				ctx->token = start;
+				ret = proceed_statement(ctx, parent, ef);
+				cmp_err_skip(ctx, "while");
+				cmp_err_skip(ctx, "(");
+				var = proceed_expression(ctx, parent, 0, ef);
+			} while (ef && var->intval && ret != RTYPE_RETURN && ret != RTYPE_BREAK);
+			if (ret == RTYPE_BREAK) ret = RTYPE_NORMAL;
+			cmp_err_skip(ctx, ")");
+		} else {
+			if (!cmp(ctx, ";")) proceed_expression(ctx, parent, 0, ef);
+		}
 		cmp_err_skip(ctx, ";");
 	}
 	return ret;
@@ -509,10 +494,11 @@ int proceed(context *ctx) {
 
 /* ソースファイルのfpを受け取り、token構造体の配列を返します */
 token *create_token_vector(FILE *fp) {
-	token *tok = malloc(sizeof(tok) * 1024 * 32);
+	token *tok = calloc(1024 * 32, sizeof(token));
 	int i = 0;
 	int c = fgetc(fp);
 	while (1) {
+		char str[1024], *s = str;
 		while (1) {
 			while (strchr("\r\n\t\v ", c) != NULL) c = fgetc(fp);
 			if (c == '/') {
@@ -528,18 +514,15 @@ token *create_token_vector(FILE *fp) {
 							}
 						}
 					}
-					continue;
 				} else if (c == '/') {
 					while (c != '\n' && c != EOF) c = fgetc(fp);
-					continue;
 				} else {
 					ungetc(c, fp);
 					c = '/';
+					break;
 				}
-			}
-			break;
+			} else break;
 		}
-		tok[i].symbol = 0;
 		if (c == EOF) break;
 		if ('0' <= c && c <= '9') {
 			tok[i].type = T_INTVAL;
@@ -551,7 +534,6 @@ token *create_token_vector(FILE *fp) {
 			} while ('0' <= c && c <= '9');
 			tok[i].intval = val;
 		} else if (c == '"') {
-			char str[1024], *s = str;
 			while ((c = fgetc(fp)) != '"') {
 				if (c == '\\') {
 					c = fgetc(fp);
@@ -571,39 +553,34 @@ token *create_token_vector(FILE *fp) {
 			}
 			c = fgetc(fp);
 		} else {
-			char s[256];
 			int j = 0;
 			if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_') {
 				do {
-					s[j] = (char) c;
-					j++;
+					*s++ = (char) c;
 					c = fgetc(fp);
 				} while (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') 
 						|| c == '_' || ('0' <= c && c <= '9'));
-				s[j] = '\0';
-				for (j = 0; keywords[j] != NULL; j++) {
-					if (strcmp(keywords[j], s) == 0) break;
+				for (*s = '\0'; keywords[j] != NULL; j++) {
+					if (strcmp(keywords[j], str) == 0) break;
 				}
 				tok[i].type = keywords[j] == NULL ? T_IDENT : T_KEYWORD;
 			} else {
 				tok[i].type = T_SYMBOL;
-				int k, symb;
 				while (c != EOF) {
-					s[j] = (char) c;
-					s[j + 1] = '\0';
-					for (k = 1; symbols[k].text != NULL; k++) {
-						if (strcmp(symbols[k].text, s) == 0) break;
+					*s++ = (char) c; *s = '\0';
+					for (j = 1; symbols[j].text != NULL; j++) {
+						if (strcmp(symbols[j].text, str) == 0) break;
 					}
-					if (symbols[k].text == NULL) break;
-					symb = k;
+					if (symbols[j].text == NULL) {
+						*--s = '\0';
+						break;
+					}
+					tok[i].symbol = j;
 					c = fgetc(fp);
-					j++;
 				}
-				s[j] = '\0';
-				if (j == 0) err("Bad char: %c\n", s[0]);
-				tok[i].symbol = symb;
+				if (j == 0) err("Bad char: %c\n", str[0]);
 			}
-			tok[i].text = strdup(s);
+			tok[i].text = strdup(str);
 		}
 		i++;
 	}
