@@ -17,8 +17,19 @@ int putint(int fd, int val) {
 	}
 }
 
+int putc(int c, int fd) {
+	char *s = "S";
+	s[0] = c;
+	puts s;
+	// TODO: *s = c とすると sが変化してしまう
+}
+
+int putchar(int c) {
+	putc(c, stdout);
+}
+
 int fprintf(int fd, char *format, int val) {
-	char *s = "S", c;
+	char c;
 	int i;
 	for (i = 0; 1; i++) {
 		c = format[i];
@@ -32,17 +43,13 @@ int fprintf(int fd, char *format, int val) {
 				if (c == 108) { // 'l'
 					i++;
 					c = format[i];
-					print c;
 					if (c == 108) i++;
 				}
 				putint(fd, val);
 			}
 			continue;
 		}
-		// TODO: *s = c とすると sが変化してしまう
-		s[0] = c;
-		puts s;
+		putc(c, fd);
 	}
 }
 
-fprintf(stdout, "hello, %lldworld", 1234);
