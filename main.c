@@ -283,7 +283,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 				} else if (cmp_skip(ctx, "[")) {
 					variable *var = proceed_expression(ctx, blk, 0, ef);
 					if (ef) {
-						retvar = (variable *)(ret += sizeof(variable) * var->intval);
+						retvar = (variable *)(ret + sizeof(variable) * var->intval);
 						ret = retvar->intval;
 					}
 					cmp_err_skip(ctx, "]");
