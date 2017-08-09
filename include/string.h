@@ -25,11 +25,3 @@ char *strchr(char *s, int c) {
 		if (s[i] == c) return s + i;
 	return 0;
 }
-
-puts strdup("hello, world\n");
-puts strdup("Hi!\n");
-print strcmp("abcd", "abcd");
-print strcmp("abcd", "abce");
-print strcmp("abcd", "ab");
-
-
