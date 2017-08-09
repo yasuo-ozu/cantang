@@ -81,15 +81,6 @@ void cmp_err_skip(context *ctx, const char *s) {
 	if (!ret) err("require %s", s);
 }
 
-void map_free(map *m) {
-	while (m != NULL) {
-		map *n = m->next;
-		free(m->value);
-		free(m);
-		m = n;
-	}
-}
-
 map *map_add(map *m, char *key, void *value) {
 	map *n = malloc(sizeof(map));
 	n->next = m;
@@ -98,21 +89,9 @@ map *map_add(map *m, char *key, void *value) {
 	return n;
 }
 
-char *map_key(map *m, int index) {
-	if (index == 0) return m->key;
-	else return map_key(m->next, index - 1);
-}
-
 int map_count(map *m) {
 	if (m == NULL) return 0;
 	return 1 + map_count(m->next);
-}
-
-int map_index(map *m, char *key) {
-	int i;
-	for (i = 0; m != NULL; m = m->next, i++)
-		if (strcmp(m->key, key) == 0) return i;
-	return -1;
 }
 
 void *map_search(map *m, const char *key) {
@@ -223,7 +202,11 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 			} else if ((i = cmp_skip(ctx, "->")) || cmp_skip(ctx, ".")) {
 				if (ef) {
 					if (i) retvar = (variable *)retvar->intval;
-					retvar += map_index(retvar->table, ctx->token->text);
+					map *m = retvar->table;
+					for (i = 0; m != NULL; m = m->next, i++)
+						if (strcmp(m->key, ctx->token->text) == 0) break;
+					if (m == NULL) err("Invalid member: %s\n", ctx->token->text);
+					retvar += i;
 				}
 				ctx->token++;
 			} else {
