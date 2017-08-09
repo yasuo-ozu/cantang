@@ -251,15 +251,17 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 				} else if (cmp_skip(ctx, "(")) {
 					variable *args_val[16];
 					int args_count = 0;
-					do {
-						variable *var = proceed_expression(ctx, blk, 1, ef);
-						if (ef) {
-							int size = var->table != NULL ? map_count(var->table) : 1;
-							variable *var2 = calloc(size, sizeof(variable));
-							memcpy(var2, var, size * sizeof(variable));
-							args_val[args_count++] = var2;
-						}
-					} while (cmp_skip(ctx, ","));
+					if (!cmp(ctx, ")")) {
+						do {
+							variable *var = proceed_expression(ctx, blk, 1, ef);
+							if (ef) {
+								int size = var->table != NULL ? map_count(var->table) : 1;
+								variable *var2 = calloc(size, sizeof(variable));
+								memcpy(var2, var, size * sizeof(variable));
+								args_val[args_count++] = var2;
+							}
+						} while (cmp_skip(ctx, ","));
+					}
 					cmp_err_skip(ctx, ")");
 					if (ef) {
 						block args = {ctx->global, NULL};
