@@ -39,6 +39,7 @@ https://github.com/yasuo-ozu/cantang/tree/master/tests
 - ポインタへの足し算(バイト単位の計算になる)
 - キャスト(型がないため)
 - ファイルアクセス, 標準ライブラリの多くの機能
+- goto / label
 - and so on
 
 ## 仕組み
