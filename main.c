@@ -242,7 +242,7 @@ variable *proceed_expression_internal(context *ctx, block *blk, int isVector, in
 					else if (cmp(ctx, "||")) effective = !ret;
 					op = ctx->token++;
 					variable *right = proceed_expression_internal(ctx, blk, isVector, priority - 1, ef && effective);
-					if (ef) ret = proceed_binary_operator(op, ret, right->intval);
+					if (ef && effective) ret = proceed_binary_operator(op, ret, right->intval);
 				} while (symbols[ctx->token->symbol].priority[2] == priority);
 				retvar = NULL;
 			}
