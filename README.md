@@ -24,12 +24,14 @@ https://github.com/yasuo-ozu/cantang/tree/master/tests
 
 - 変数の宣言、初期化
 - 各種演算子( 前置 , 後置 , 二項 , 三項演算子等 )
+- 各種リテラル
 - 文字列
 - print 文 ( 数値表示 ), puts 文 ( 文字列表示 )
 - if-else, for, while, do-while, return, break, continue
 - 多次元配列
 - 関数宣言 , 引数 , 再帰関数
 - struct
+- #include
 
 ### 対応していない(C言語の)機能
 

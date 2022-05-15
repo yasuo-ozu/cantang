@@ -578,7 +578,6 @@ token *create_token_vector(FILE *fp, char *exename, char *fname) {
 				while ((c = fgetc(fp)) != d) *s++ = c;
 				*s = 0;
 				c = fgetc(fp);
-				printf("loading %s\n", str);
 				token *ts = process_file(str, d, exename, fname);
 				while (ts->type != T_NULL) tok[i++] = *ts++;
 				i--;
