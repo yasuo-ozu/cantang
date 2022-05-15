@@ -111,6 +111,20 @@ variable *search(block *blk, const char *key) {
 	return NULL;
 }
 
+void getbase_and_concat(char *base, char *rel1, char *rel2, char *ret) {
+	char *e = strrchr(base, '/');
+	if (e != NULL) {
+		while (base < e) *ret++ = *base++;
+		*ret++ = '/';
+	}
+	while (*rel1 != '\0') *ret++ = *rel1++;
+	if (rel2 != NULL) {
+		*ret++ = '/';
+		while (*rel2 != '\0') *ret++ = *rel2++;
+	}
+	*ret = '\0';
+}
+
 int proceed_binary_operator(token *op, int a, int b) {
 	if      (strcmp(op->text, "*" ) == 0) return a *  b;
 	else if (strcmp(op->text, "/" ) == 0) return a /  b;
@@ -477,39 +491,100 @@ int proceed(context *ctx) {
 	return ctx->return_value;
 }
 
+int skip_whitespace(FILE *fp, int *c) {
+	int newline = 0;
+	while (1) {
+		while (strchr("\r\n\t\v ", *c) != NULL) {
+			if (*c == '\n') newline = 1;
+			*c = fgetc(fp);
+		}
+		if (*c == '/') {
+			*c = fgetc(fp);
+			if (*c == '*') {
+				while(*c != EOF) {
+					*c = fgetc(fp);
+					if (*c == '*') {
+						*c = fgetc(fp);
+						if (*c == '/') {
+							*c = fgetc(fp);
+							break;
+						}
+					}
+				}
+			} else if (*c == '/') {
+				while (*c != '\n' && *c != EOF) *c = fgetc(fp);
+			} else {
+				ungetc(*c, fp);
+				newline = 0;
+				*c = '/';
+				break;
+			}
+		} else break;
+	}
+	return newline;
+}
+
+int tokenize_ident(FILE *fp, int *c, char *s) {
+	if (('A' <= *c && *c <= 'Z') || ('a' <= *c && *c <= 'z') || *c == '_') {
+		do {
+			*s++ = (char) *c;
+			*c = fgetc(fp);
+		} while (('A' <= *c && *c <= 'Z') || ('a' <= *c && *c <= 'z') 
+				|| *c == '_' || ('0' <= *c && *c <= '9'));
+		*s = 0;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+token *create_token_vector(FILE *fp, char *exename, char *fname);
+token *process_file(char *s, int d, char *exename, char *fname) {
+	char str[1024];
+	if (d == '"') {
+		getbase_and_concat(fname, str, NULL, str);
+		FILE *fp = fopen(str, "rb");
+		if (fp != NULL) {
+			return create_token_vector(fp, exename, fname);
+		}
+	}
+	getbase_and_concat(exename, "include", s, str);
+	FILE *fp = fopen(str, "rb");
+	if (fp == NULL) {
+		err("Cannnot find %s", str);
+	}
+	return create_token_vector(fp, exename, fname);
+}
+
 /* ソースファイルのfpを受け取り、token構造体の配列を返します */
-token *create_token_vector(FILE *fp) {
+token *create_token_vector(FILE *fp, char *exename, char *fname) {
 	token *tok = calloc(1024 * 32, sizeof(token));
 	int i = 0;
 	int c = fgetc(fp);
+	int newline = 1;
 	while (1) {
 		char str[1024], *s = str;
-		while (1) {
-			while (strchr("\r\n\t\v ", c) != NULL) c = fgetc(fp);
-			if (c == '/') {
-				c = fgetc(fp);
-				if (c == '*') {
-					while(c != EOF) {
-						c = fgetc(fp);
-						if (c == '*') {
-							c = fgetc(fp);
-							if (c == '/') {
-								c = fgetc(fp);
-								break;
-							}
-						}
-					}
-				} else if (c == '/') {
-					while (c != '\n' && c != EOF) c = fgetc(fp);
-				} else {
-					ungetc(c, fp);
-					c = '/';
-					break;
-				}
-			} else break;
+		if (skip_whitespace(fp, &c)) {
+			newline = 1;
 		}
 		if (c == EOF) break;
-		if ('0' <= c && c <= '9') {
+		if (newline && c == '#') {
+			c = fgetc(fp);
+			newline = skip_whitespace(fp, &c);
+			tokenize_ident(fp, &c, str);
+			newline = skip_whitespace(fp, &c);
+			if (strcmp(str, "include") == 0 && (c == '<' || c == '"')) {
+				int d = c == '<' ? '>' : '"';
+				while ((c = fgetc(fp)) != d) *s++ = c;
+				*s = 0;
+				c = fgetc(fp);
+				printf("loading %s\n", str);
+				token *ts = process_file(str, d, exename, fname);
+				while (ts->type != T_NULL) tok[i++] = *ts++;
+				i--;
+			}
+			while (c != EOF && c != '\n') c = fgetc(fp);
+		} else if ('0' <= c && c <= '9') {
 			tok[i].type = T_INTVAL;
 			int val = 0;
 			do {
@@ -554,13 +629,8 @@ token *create_token_vector(FILE *fp) {
 			c = fgetc(fp);
 		} else {
 			int j = 0;
-			if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_') {
-				do {
-					*s++ = (char) c;
-					c = fgetc(fp);
-				} while (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') 
-						|| c == '_' || ('0' <= c && c <= '9'));
-				for (*s = '\0'; keywords[j] != NULL; j++) {
+			if (tokenize_ident(fp, &c, str)) {
+				for (; keywords[j] != NULL; j++) {
 					if (strcmp(keywords[j], str) == 0) break;
 				}
 				tok[i].type = keywords[j] == NULL ? T_IDENT : T_KEYWORD;
@@ -582,6 +652,7 @@ token *create_token_vector(FILE *fp) {
 			}
 			tok[i].text = strdup(str);
 		}
+		newline = 0;
 		i++;
 	}
 	tok[i].type = T_NULL;
@@ -599,7 +670,7 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 		context ctx;
-		ctx.token = create_token_vector(fp);
+		ctx.token = create_token_vector(fp, argv[0], fname);
 		ctx.return_value = 0;
 		if (fp != stdin) fclose(fp);
 		return proceed(&ctx);
