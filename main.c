@@ -518,6 +518,21 @@ token *create_token_vector(FILE *fp) {
 				c = fgetc(fp);
 			} while ('0' <= c && c <= '9');
 			tok[i].intval = val;
+		} else if (c == '\'') {
+			long long d = 0;
+			while ((c = fgetc(fp)) != '\'') {
+				if (c == '\\') {
+					c = fgetc(fp);
+					if      (c == 'n') c = '\n';
+					else if (c == 't') c = '\t';
+				}
+				*s++ = c;
+				d = (d << 8) + c;
+			}
+			*s++ = 0;
+			tok[i].type = T_INTVAL;
+			tok[i].intval = (long long) d;
+			c = fgetc(fp);
 		} else if (c == '"') {
 			while ((c = fgetc(fp)) != '"') {
 				if (c == '\\') {
